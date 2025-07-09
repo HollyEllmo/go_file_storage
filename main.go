@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/HollyEllmo/go_file_storage/p2p"
@@ -15,6 +16,13 @@ tcpOpts := p2p.TCPTransportOpts{
 }
 
 tr := p2p.NewTCPTransport(tcpOpts)
+
+go func() {
+	for {
+		msg := <-tr.Consume()
+		fmt.Printf("Received message from %+v\n", msg)
+	}
+}()
 
 if err := tr.ListenAndAccept(); err != nil {
 	log.Fatalf("Failed to start TCP transport: %v", err)
