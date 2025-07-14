@@ -16,13 +16,14 @@ func TestPathTransformFunc(t *testing.T) {
 		t.Errorf("have %s, want %s", pathKey.Pathname, expectedPathName)
 	}
 
-	if pathKey.Filename != expectedPathName {
+	if pathKey.Filename != expectedOriginalKey {
 		t.Errorf("have %s, want %s", pathKey.Filename, expectedOriginalKey)
 	}
 }
 
 func TestStoreDeleteKey(t *testing.T) {
 	opts := StoreOpts{
+		Root: "test_storage",
 		PathTransformFunc: CASPathTransformFunc,
 	}
 	s := NewStore(opts)
@@ -40,15 +41,19 @@ func TestStoreDeleteKey(t *testing.T) {
 
 func TestStore(t *testing.T) {
 	opts := StoreOpts{
+		Root: "test_storage",
 		PathTransformFunc: CASPathTransformFunc,
 	}
 	s := NewStore(opts)
-
 	key := "momsspecials"
 	data := []byte("some jpg bytes")
 
 	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
 		t.Error(err)
+	}
+
+	if ok := s.Has(key); !ok {
+		t.Errorf("key %s should exist", key)
 	}
 
 	r, err := s.Read(key)
@@ -57,10 +62,10 @@ func TestStore(t *testing.T) {
 	}
 
 	b, _ := io.ReadAll(r)
-
-	fmt.Println(string(b))
-
 	if string(b) != string(data) {
 		t.Errorf("have %s, want %s", b, data)
 	}
+	fmt.Println(string(b))
+
+	s.Delete(key)
 }
