@@ -1,39 +1,39 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/HollyEllmo/go_file_storage/p2p"
 )
 
-func onPeer(peer p2p.Peer) error {
-	peer.Close()
-	// fmt.Println("doing some logic with the peer outside of TCPTransport")
-	return nil
-}
-
 func main() {
-
-tcpOpts := p2p.TCPTransportOpts{
-	ListenAddr: ":3000",
-	HandshakeFunc: p2p.NOPHandshakeFunc, // Default handshake function
-	Decoder: p2p.DefaultDecoder{}, // Using GOB for decoding messages
-	OnPeer: onPeer,
-}
-
-tr := p2p.NewTCPTransport(tcpOpts)
-
-go func() {
-	for {
-		msg := <-tr.Consume()
-		fmt.Printf("Received message from %+v\n", msg)
+	tcptransportOpts := p2p.TCPTransportOpts{
+		ListenAddr:    "localhost:3000",
+		HandshakeFunc: p2p.NOPHandshakeFunc,
+		Decoder: 	 p2p.DefaultDecoder{},
+		// TODO: onPeer func
 	}
-}()
 
-if err := tr.ListenAndAccept(); err != nil {
-	log.Fatalf("Failed to start TCP transport: %v", err)
-}
+	tcpTransport := p2p.NewTCPTransport(tcptransportOpts)
 
-select {}
+	fileServerOpts := FileServerOpts{
+		StorageRoot: "3000_network",
+		PathTransformFunc: CASPathTransformFunc,
+		Transport: tcpTransport,
+		BootstrapNodes: []string{
+			"localhost:4000",
+		},
+	}
+
+	s := NewFileServer(fileServerOpts)
+
+	// go func() {
+	// 	time.Sleep(time.Second * 3)
+	// 	s.Stop()
+	// }()
+
+	if err := s.Start(); err != nil {
+		log.Fatal(err)
+	}
+	
 }
