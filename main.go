@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"log"
+	"time"
 
 	"github.com/HollyEllmo/go_file_storage/p2p"
 )
@@ -38,4 +40,10 @@ func main() {
 	}()
 	
 	s2.Start()
+	time.Sleep(1 * time.Second)
+
+	data := bytes.NewReader([]byte("my big data file here"))
+	s2.StoreData("myprivatedata", data)
+
+	select {}
 }
