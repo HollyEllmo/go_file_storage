@@ -31,7 +31,7 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 	return s
 }
 
-func main() {
+func main() {  
 	s1 := makeServer(":3000", "")
 	s2 := makeServer(":4000", ":3000")
 
@@ -39,7 +39,9 @@ func main() {
 		log.Fatal(s1.Start())
 	}()
 	
-	s2.Start()
+	go func() {
+		log.Fatal(s2.Start())
+	}()
 	time.Sleep(1 * time.Second)
 
 	data := bytes.NewReader([]byte("my big data file here"))

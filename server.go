@@ -68,10 +68,10 @@ if err := s.store.Write(key, r); err != nil {
 }
 
    buf := new(bytes.Buffer)
-   _, err := io.Copy(buf, r)
-   if err != nil {
-	return err
-   }
+//    _, err := io.Copy(buf, r)
+//    if err != nil {
+// 	return err
+//    }
 
    p := &Payload{
 	Key:  key,
@@ -110,6 +110,7 @@ func (s *FileServer) loop() {
 			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&p); err != nil {
 				log.Fatal(err)
 			}
+			fmt.Printf("received payload: %+v\n", p)
 		case <- s.quitch:
 			return
 		}
