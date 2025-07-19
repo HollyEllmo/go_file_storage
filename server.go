@@ -64,16 +64,17 @@ type MessageStoreFile struct {
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
-	buf := new(bytes.Buffer)
-    tee := io.TeeReader(r, buf)
-   if err := s.store.Write(key, tee); err != nil {
-	return err
-  }
+   buf := new(bytes.Buffer)
+   tee := io.TeeReader(r, buf)
+   size, err := s.store.Write(key, tee)
+	if err != nil {
+		return err
+	}
 
 	msg := Message{
 		Payload: MessageStoreFile{
 			Key: key,
-			Size: 22,
+			Size: size,
 		},
 	}
 	msgBuf := new(bytes.Buffer)
@@ -91,32 +92,14 @@ func (s *FileServer) StoreData(key string, r io.Reader) error {
 	time.Sleep(time.Second * 3)
 
 	for _, peer := range s.peers {
-		n, err :=io.Copy(peer, r); if err != nil {
+		n, err :=io.Copy(peer, buf); if err != nil {
 			return err
 		}
 
 		fmt.Println("received and written bytes to disk", n)
 	}
-	fmt.Println("StoreData: File sent!")
 
 	return nil
-
-//    buf := new(bytes.Buffer)
-//    tee := io.TeeReader(r, buf)
-
-//    if err := s.store.Write(key, tee); err != nil {
-// 	return err
-//   }
-
-//    p := &DataMessage{
-// 	Key:  key,
-// 	Data: buf.Bytes(),
-//    }
-
-// 	return s.broadcast(&Message{
-// 		From: "todo",
-// 		Payload: p,
-// 	})
 }
 
 func (s *FileServer) Stop() {
@@ -174,7 +157,7 @@ func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 		return fmt.Errorf("peer %s not found in peers map", from)
 	}
 
-	if err := s.store.Write(msg.Key, io.LimitReader(peer, msg.Size)); err != nil {
+	if _, err := s.store.Write(msg.Key, io.LimitReader(peer, msg.Size)); err != nil {
 		return err
 	}
 
