@@ -60,37 +60,42 @@ type Message struct {
 
 type MessageStoreFile struct {
 	Key string
+	Size int64 
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
-	// 1. Store this file to disk
-	// 2. broadcast this file to all known peers in the network
-
 	buf := new(bytes.Buffer)
+    tee := io.TeeReader(r, buf)
+   if err := s.store.Write(key, tee); err != nil {
+	return err
+  }
+
 	msg := Message{
 		Payload: MessageStoreFile{
 			Key: key,
+			Size: 22,
 		},
 	}
-	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
+	msgBuf := new(bytes.Buffer)
+	if err := gob.NewEncoder(msgBuf).Encode(msg); err != nil {
 		return err
 	}
 
 	for _, peer := range s.peers {
-		if err := peer.Send(buf.Bytes()); err != nil {
+		if err := peer.Send(msgBuf.Bytes()); err != nil {
 			return err
 		}
 	}
 
-	fmt.Println("StoreData: Sent storagekey, now sleeping 3 seconds...")
-	time.Sleep(time.Second * 3)
-	fmt.Println("StoreData: Sleep done, sending file...")
 
-	payload := []byte("THIS LARGE FILE")
+	time.Sleep(time.Second * 3)
+
 	for _, peer := range s.peers {
-		if err := peer.Send(payload); err != nil {
+		n, err :=io.Copy(peer, r); if err != nil {
 			return err
 		}
+
+		fmt.Println("received and written bytes to disk", n)
 	}
 	fmt.Println("StoreData: File sent!")
 
@@ -169,7 +174,13 @@ func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 		return fmt.Errorf("peer %s not found in peers map", from)
 	}
 
-	return s.store.Write(msg.Key, peer)
+	if err := s.store.Write(msg.Key, io.LimitReader(peer, msg.Size)); err != nil {
+		return err
+	}
+
+	peer.(*p2p.TCPPeer).Wg.Done()
+
+	return nil
 }
 
 func (s *FileServer) bootstrapNetwork() error {
