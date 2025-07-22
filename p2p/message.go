@@ -2,7 +2,7 @@ package p2p
 
 const ( 
 	  IncomingMessage = 0x2
-      IncommingStream = 0x1
+      IncomingStream = 0x1
 )
 
 // RPC holds any arbitrary data that is being sent over the each transport between two nodes in the network.

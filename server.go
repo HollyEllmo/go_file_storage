@@ -143,7 +143,7 @@ func (s *FileServer) Store(key string, r io.Reader) error {
 
 	// TODO: use multiwriter here.
 	for _, peer := range s.peers {
-		peer.Send([]byte{p2p.IncommingStream}) 
+		peer.Send([]byte{p2p.IncomingStream}) 
 		n, err :=io.Copy(peer, fileBuffer); if err != nil {
 			return err
 		}
