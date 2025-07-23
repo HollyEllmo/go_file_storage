@@ -251,7 +251,7 @@ func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 		return err
 	}
 
-	fmt.Printf("written %d bytes to disk\n", s.Transport.Addr(), n)
+	fmt.Printf("[%s] written %d bytes to disk\n", s.Transport.Addr(), n)
 
 	peer.CloseStream()
 
