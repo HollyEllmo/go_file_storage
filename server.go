@@ -44,18 +44,6 @@ storeOpts := StoreOpts{
 	}
 } 
 
-
-// func (s *FileServer) stream(msg *Message) error {
-// peers := []io.Writer{}
-
-// for _, peer := range s.peers {
-// 	peers = append(peers, peer)
-// }
-
-// mw := io.MultiWriter(peers...)
-// return gob.NewEncoder(mw).Encode(msg)
-// }
-
 func (s *FileServer) broadcast(msg *Message) error {
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
@@ -150,19 +138,18 @@ func (s *FileServer) Store(key string, r io.Reader) error {
 
 	time.Sleep(time.Millisecond * 5)
 
-	// TODO: use multiwriter here.
+	peers := []io.Writer{}
 	for _, peer := range s.peers {
-		peer.Send([]byte{p2p.IncomingStream}) 
-		n, err := copyEncrypt(s.EncKey, fileBuffer, peer)
-		if err != nil {
-			return err
-		}
-		// n, err :=io.Copy(peer, fileBuffer); if err != nil {
-		// 	return err
-		// }
-
-		fmt.Println("received and written bytes to disk", n)
+		peers = append(peers, peer)
 	}
+	mw := io.MultiWriter(peers...)
+	mw.Write([]byte{p2p.IncomingStream}) // Indicate that this is a stream message	
+	n, err := copyEncrypt(s.EncKey, fileBuffer, mw)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("[%s] written %d bytes over the network\n", s.Transport.Addr(), n)
 
 	return nil
 }
@@ -278,7 +265,7 @@ func (s *FileServer) bootstrapNetwork() error {
 	}
 	for _, addr := range s.BootstrapNodes {
 		go func (addr string) {
-			fmt.Println("attempting to connect with remote: ", addr)
+			fmt.Printf("[%s] trying to connect to bootstrap node %s\n", s.Transport.Addr(), addr)
 			if err := s.Transport.Dial(addr); err != nil {
 				fmt.Printf("failed to dial %s: %v\n", addr, err)
 				return
@@ -291,10 +278,10 @@ func (s *FileServer) bootstrapNetwork() error {
 }
 
 func (s *FileServer) Start() error {
+	fmt.Printf("starting file server on %s\n", s.Transport.Addr())
 	if err := s.Transport.ListenAndAccept(); err != nil {
 		return err
 	}
-
 	
 	s.bootstrapNetwork()
 
