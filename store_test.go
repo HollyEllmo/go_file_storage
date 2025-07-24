@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-
 func TestPathTransformFunc(t *testing.T) {
 	key := "momsbestpicture"
 	pathKey := CASPathTransformFunc(key)
@@ -24,46 +23,47 @@ func TestPathTransformFunc(t *testing.T) {
 
 func TestStore(t *testing.T) {
 	s := newStore()
+	id := generateID()
 	defer teardown(t, s)
 
-for i := 0; i < 50; i++ {
-	key := fmt.Sprintf("foo_%d", i)
-	data := []byte("some jpg bytes")
+	for i := 0; i < 50; i++ {
+		key := fmt.Sprintf("foo_%d", i)
+		data := []byte("some jpg bytes")
 
-	if _, err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
-	}
+		if _, err := s.writeStream(id, key, bytes.NewReader(data)); err != nil {
+			t.Error(err)
+		}
 
-	if ok := s.Has(key); !ok {
-		t.Errorf("key %s should exist", key)
-	}
+		if ok := s.Has(id, key); !ok {
+			t.Errorf("key %s should exist", key)
+		}
 
-	_, r, err := s.Read(key)
-	if err != nil {
-		t.Error(err)
-	}
+		_, r, err := s.Read(id, key)
+		if err != nil {
+			t.Error(err)
+		}
 
-	b, _ := io.ReadAll(r)
-	if string(b) != string(data) {
-		t.Errorf("have %s, want %s", b, data)
-	}
-	fmt.Println(string(b))
+		b, _ := io.ReadAll(r)
+		if string(b) != string(data) {
+			t.Errorf("have %s, want %s", b, data)
+		}
+		fmt.Println(string(b))
 
-	if err := s.Delete(key); err != nil {
-		t.Error(err)
-	}
+		if err := s.Delete(id, key); err != nil {
+			t.Error(err)
+		}
 
-	if ok := s.Has(key); ok {
-		t.Errorf("key %s should not exist", key)
+		if ok := s.Has(id, key); ok {
+			t.Errorf("key %s should not exist", key)
+		}
 	}
-}
 }
 
 func newStore() *Store {
 	opts := StoreOpts{
 		PathTransformFunc: CASPathTransformFunc,
 	}
-  return NewStore(opts)
+	return NewStore(opts)
 }
 
 func teardown(t *testing.T, s *Store) {
@@ -71,6 +71,3 @@ func teardown(t *testing.T, s *Store) {
 		t.Errorf("failed to clear store: %v", err)
 	}
 }
-
-
- 
