@@ -80,6 +80,18 @@ type MessageGetFile struct {
 	Key string
 }
 
+type MessageFileQuery struct {
+	ID  string
+	Key string
+}
+
+type MessageFileQueryResponse struct {
+	ID       string
+	Key      string
+	HasFile  bool
+	PeerAddr string
+}
+
 func (s *FileServer) Get(key string) (io.Reader, error) {
 	if s.store.Has(s.ID, key) {
 		fmt.Printf("[%s] serving file (%s) from local disk\n", s.Transport.Addr(), key)
@@ -89,22 +101,41 @@ func (s *FileServer) Get(key string) (io.Reader, error) {
 
 	fmt.Printf("[%s] dont have file (%s) locally fetching from network\n", s.Transport.Addr(), key)
 
-	msg := Message{
-		Payload: MessageGetFile{
+	// Phase 1: Query all peers for file availability
+	queryMsg := Message{
+		Payload: MessageFileQuery{
 			ID:  s.ID,
 			Key: hashKey(key),
 		},
 	}
 
-	if err := s.broadcast(&msg); err != nil {
+	if err := s.broadcast(&queryMsg); err != nil {
 		return nil, err
 	}
 
+	// Wait for query responses
 	time.Sleep(time.Millisecond * 500)
 
+	// Phase 2: Select first available peer and request file
 	for _, peer := range s.peers {
-		// First read the file size so we can limit the amount of bytes that we read
-		// from the connection, so it will not keep hanging.
+		getMsg := Message{
+			Payload: MessageGetFile{
+				ID:  s.ID,
+				Key: hashKey(key),
+			},
+		}
+
+		buf := new(bytes.Buffer)
+		if err := gob.NewEncoder(buf).Encode(&getMsg); err != nil {
+			continue
+		}
+
+		peer.Send([]byte{p2p.IncomingMessage})
+		if err := peer.Send(buf.Bytes()); err != nil {
+			continue
+		}
+
+		// Read file from selected peer
 		var fileSize int64
 		binary.Read(peer, binary.LittleEndian, &fileSize)
 
@@ -116,6 +147,7 @@ func (s *FileServer) Get(key string) (io.Reader, error) {
 		fmt.Printf("[%s] received (%d) bytes over the network from (%s)", s.Transport.Addr(), n, peer.RemoteAddr().String())
 
 		peer.CloseStream()
+		break // Only get file from first peer
 	}
 
 	_, r, err := s.store.Read(s.ID, key)
@@ -206,6 +238,11 @@ func (s *FileServer) handleMessage(from string, msg *Message) error {
 		return s.handleMessageStoreFile(from, v)
 	case MessageGetFile:
 		return s.handleMessageGetFile(from, v)
+	case MessageFileQuery:
+		return s.handleMessageFileQuery(from, v)
+	case MessageFileQueryResponse:
+		// Query responses are handled implicitly in Get() method
+		return nil
 	}
 
 	return nil
@@ -264,6 +301,32 @@ func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 	return nil
 }
 
+func (s *FileServer) handleMessageFileQuery(from string, msg MessageFileQuery) error {
+	hasFile := s.store.Has(msg.ID, msg.Key)
+	
+	response := Message{
+		Payload: MessageFileQueryResponse{
+			ID:       s.ID,
+			Key:      msg.Key,
+			HasFile:  hasFile,
+			PeerAddr: s.Transport.Addr(),
+		},
+	}
+
+	peer, ok := s.peers[from]
+	if !ok {
+		return fmt.Errorf("peer %s not found in peers map", from)
+	}
+
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(&response); err != nil {
+		return err
+	}
+
+	peer.Send([]byte{p2p.IncomingMessage})
+	return peer.Send(buf.Bytes())
+}
+
 func (s *FileServer) bootstrapNetwork() error {
 	for _, addr := range s.BootstrapNodes {
 		if len(addr) == 0 {
@@ -300,4 +363,6 @@ func (s *FileServer) Start() error {
 func init() {
 	gob.Register(MessageStoreFile{})
 	gob.Register(MessageGetFile{})
+	gob.Register(MessageFileQuery{})
+	gob.Register(MessageFileQueryResponse{})
 }
